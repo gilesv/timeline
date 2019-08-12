@@ -2,7 +2,7 @@
 
 }
 
-.timeline {
+svg.calendar {
     width: 800px;
     height: 230px;
     border: 1px solid #9e9e9e;
@@ -54,4 +54,14 @@ foreignObject {
     width: 1px;
     height: 1px;
     overflow: visible;
+}
+
+.platform {
+    
+}
+
+.timeline {
+    fill: grey;
+    width: 100%;
+    height: 100px;
 }

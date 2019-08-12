@@ -9,31 +9,57 @@ const dataset = [
   { type: "build", title: "Proton", from: new Date("2018-09-22"), to: new Date("2019-01-15") },
 ];
 
-let timeline = d3.select("svg");
-const timelineHeight = 210;
-const timelineWidth = timeline.style("width").split("px")[0];
+const platforms = [
+  {
+    name: "Desktop",
+    timelines: [
+      {
+        name: "Saturn POR",
+        builds: [
+          {
+            name: "PoC",
+            milestones: [
+              { title: "SMT/MLB Mini", at: new Date("2018-04-15") },
+              { title: "SMT/MLB Main", at: new Date("2018-06-15") },
+            ],
+          }
+        ],
+        milestones: [
+          { title: "OK2Ship", at: new Date("2018-04-15") },
+          { title: "Ramp", at: new Date("2018-09-10") },
+        ]
+      }
+    ]
+  }
+];
 
-let x = d3.scaleTime()
-  .domain([d3.min(dataset, getMinDate), d3.max(dataset, getMaxDate)])
-  .rangeRound([0, timelineWidth]);
+let calendar = d3.select("svg");
+const timelineHeight = 610;
+const timelineWidth = calendar.style("width").split("px")[0];
 
-const xAxis = d3.axisTop(x).tickSize(-timelineHeight);
-
-const gX = timeline.append("g")
-  .attr("class", "x-axis")
-  .call(xAxis)
-  .attr('transform', `translate(0,20)`)
-  .attr('text-anchor', 'start');
-
-  const zoom = d3.zoom().on("zoom", zoomed);
+const zoom = d3.zoom().on("zoom", zoomed);
 // const zoom = d3.zoom()
 //     .scaleExtent([1, 40])
 //     .translateExtent([[-100, -100], [timelineWidth + 90, timelineHeight + 100]])
 //     .on("zoom", zoomed);
 
 function update(dataset) {
-  const milestones = createMilestoneGroup(timeline);
-  const builds = createBuildGroup(timeline);
+  const platforms = createPlatforms(dataset);
+  //const milestones = createMilestoneGroup(calendar);
+  //const builds = createBuildGroup(calendar);
+}
+
+function createPlatforms(dataset) {
+  const platforms = calendar.selectAll("g.platform")
+    .data(dataset)
+    .enter()
+    .append("g").attr("class", "platform")
+    .attr("transform", translate(0, 20))
+    .append("rect").attr("class", "timeline");
+}
+
+function createTimeline(platform, i) {
+
 }
 
 function createMilestoneGroup(timeline) {
@@ -74,6 +100,19 @@ function appendMilestone(m, i) {
   group.append("rect").attr("class", "milestone-diamond");
 }
 
+let x = d3.scaleTime()
+  .domain([d3.min(dataset, getMinDate), d3.max(dataset, getMaxDate)])
+  .rangeRound([0, timelineWidth]);
+
+const xAxis = d3.axisTop(x).tickSize(-timelineHeight);
+
+const gX = calendar.append("g")
+  .attr("class", "x-axis")
+  .attr("height", timelineHeight)
+  .call(xAxis)
+  .attr('transform', translate(0, 20))
+  .attr('text-anchor', 'start');
+
 function zoomed() {
   gX.call(xAxis.scale(d3.event.transform.rescaleX(x)));
   
@@ -88,7 +127,7 @@ function zoomed() {
 
 }
 
-timeline.call(zoom);
+calendar.call(zoom);
 
 // utils
 function getMaxDate(item) {
@@ -104,4 +143,4 @@ function translate(x, y) {
 }
 
 // main
-update(dataset);
+update(platforms);
