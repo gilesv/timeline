@@ -32,7 +32,7 @@ rect.milestone-diamond {
 }
 
 .milestone {
-
+    *transition: transform 0.1s ease;
 }
 
 .milestone > foreignObject {
@@ -74,7 +74,9 @@ g.milestone.hidden .milestone-label {
     background: #98989840;
 }
 
-.timeline {}
+.timeline {
+    cursor: pointer;
+}
 
 .timeline__label {
     height: 100px;
