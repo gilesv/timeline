@@ -297,7 +297,7 @@ function BuildComponent(build, i) {
 
   const positions = { 
     x: xScale(minDate) - leftPadding, 
-    y: timelineHeight / 2
+    y: (timelineHeight / 2) - 15
   };
 
   const width = xScale(maxDate) - xScale(minDate);
@@ -320,11 +320,73 @@ function BuildComponent(build, i) {
     `);
 
   const body = group.append("g").attr("class", "build__milestones")
-    .attr("width", "100%")
     .selectAll("g.milestone")
     .data(build => build.milestones)
     .enter()
-    .each(OutsideMilestoneComponent);
+    .each(BuildMilestoneComponent);
+}
+
+function BuildMilestoneComponent(milestone, i) {
+  const xScale = newX || x;
+
+  const positions = { 
+    x: xScale(milestone.date) - leftPadding, 
+    y: timelineHeight / 2 
+  };
+
+  const group = d3.select(this)
+    .append("g").attr("class", "build__milestone")
+    .attr("transform", translate(positions.x, positions.y));
+
+  // text
+  group.append("foreignObject")
+    .attr("width", 100)
+    .attr("height", 50)
+    .attr("x", -4).attr("y", -27)
+    .append("xhtml:div")
+    .attr("class", "build__milestone-label")
+    .html(`
+        <div class="build__milestone-label-title">${milestone.title}</div>
+        ${milestone.date.toLocaleDateString()}
+    `);
+
+  // diamond
+  const diamond = group.append("circle")
+    .attr("class", "build__milestone-diamond")
+    .attr("r", 4);
+
+  // move milestone
+  function dragStarted() {
+    group.raise();
+    group.attr("cursor", "grabbing");
+  }
+
+  function dragging(milestone) {
+    const mouseX = d3.event.x;
+    const getDateFromX = (mouseX) => {
+      const xScale = newX || x;
+      return xScale.invert(mouseX)
+    }
+
+    milestone.date = getDateFromX(mouseX);
+
+    group.attr("transform", translate(mouseX - leftPadding, timelineHeight /2));
+  }
+
+  function dragEnd() {
+    group.attr("cursor", "grab");
+    redraw();
+  }
+
+  diamond.call(d3.drag()
+    .container(d3.select("g.timeline").node())
+    .on("start", dragStarted)
+    .on("drag", dragging)
+    .on("end", dragEnd)
+  );
+
+  // place
+  group.call(x);
 }
 
 let timelineListOrder = dataset.platforms[0].timelines.map(t => t.id);
