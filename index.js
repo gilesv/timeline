@@ -15,12 +15,13 @@ let dataset = {
       name: "Desktop",
       timelines: [
         {
+          id: "timeline#saturn",
           name: "Saturn POR",
           builds: [
             {
               name: "PoC",
               milestones: [
-                { title: "SMT/MLB Mini", date: new Date("2018-04-15") },
+                { title: "SMT/MLB Mini", date: new Date("2018-02-15") },
                 { title: "SMT/MLB Main", date: new Date("2018-06-20") },
               ],
             }
@@ -31,6 +32,7 @@ let dataset = {
           ]
         },
         {
+          id: "timeline#mars",
           name: "Mars",
           builds: [
             {
@@ -47,6 +49,7 @@ let dataset = {
           ]
         },
         {
+          id: "timeline#earth",
           name: "Earth",
           builds: [
             {
@@ -79,7 +82,6 @@ let newX;
 // config
 const leftPadding = 250;
 const timelineHeight = 100;
-
 
 function setUp() {
   calendar = d3.select("svg.calendar");
@@ -179,22 +181,26 @@ function TimelineComponent(timeline, i) {
     .attr("class", "timeline__background")
     .attr("even", i % 2 === 0 ? "true" : "false");
 
-  // Timeline name (left panel)
-  group.append("foreignObject")
-    .attr("width", leftPadding)
-    .attr("height", timelineHeight)
-    .append("xhtml:div")
-    .attr("class", "timeline__label")
-    .text(timeline.name);
+  // right panel (draggable-area)
+  const itemsArea = group.append("g").attr("class", "items");
 
   // Outside Milestones (right panel)
-  group.append("g")
+  itemsArea.append("g").attr("class", "outside-milestones")
     .attr("width", calendarWidth - leftPadding)
     .attr("transform", translate(leftPadding, 0))
     .selectAll("g.milestone")
     .data(timeline => timeline.milestones)
     .enter()
     .each(OutsideMilestoneComponent);
+
+  // Builds (with bandings)
+  itemsArea.append("g").attr("class", "builds")
+    .attr("width", calendarWidth - leftPadding)
+    .attr("transform", translate(leftPadding, 0))
+    .selectAll("g.build")
+    .data(timeline => timeline.builds)
+    .enter()
+    .each(BuildComponent);
 
   // guideline
   const guide = group.append("line")
@@ -205,6 +211,15 @@ function TimelineComponent(timeline, i) {
     .attr("height", timelineHeight)
     .attr("stroke", "#98989840")
     .attr("stroke-width", 1);
+
+    // Timeline name (left panel)
+  const leftGroup = group.append("g")
+    .append("foreignObject")
+    .attr("width", leftPadding)
+    .attr("height", timelineHeight)
+    .append("xhtml:div")
+    .attr("class", "timeline__label")
+    .text(timeline.name);
 
   // Insert new Milestone
   group.on("click", function () {
@@ -235,13 +250,106 @@ function TimelineComponent(timeline, i) {
   group.on("mouseleave", function () {
     guide.attr("x1", 0).attr("x2", 0);
   })
+
+  // drag n drop
+  function dragStarted(timeline) {
+    group.raise();
+    calendar.attr("cursor", "grabbing");
+
+    draggedTimelineY = d3.event.y;
+    freeTimelineSlot = slots[timeline.id];
+  }
+
+  function dragging(timeline) {
+    const mouseY = d3.event.y;
+
+    if (mouseY < 0) {
+      group.attr("transform", translate(0, 0));
+      return;
+    }
+    
+    if (mouseY > (calHeight - timelineHeight)) {
+      group.attr("transform", translate(0, calHeight - timelineHeight));
+      return;
+    }
+
+    group.attr("transform", translate(0, mouseY));
+  }
+
+  function dragEnd() {
+    calendar.attr("cursor", "normal");
+    // redraw();
+  }
+
+  leftGroup.call(d3.drag()
+    .container(d3.select("g.timeline-list").node())
+    .on("start", dragStarted)
+    .on("drag", dragging)
+    .on("end", dragEnd)
+  );
 }
+
+function BuildComponent(build, i) {
+  const xScale = newX || x;
+
+  const minDate = d3.min(build.milestones,  m => m.date);
+  const maxDate = d3.max(build.milestones,  m => m.date);
+
+  const positions = { 
+    x: xScale(minDate) - leftPadding, 
+    y: timelineHeight / 2
+  };
+
+  const width = xScale(maxDate) - xScale(minDate);
+
+  const group = d3.select(this)
+    .append("g").attr("class", "build")
+    .attr("transform", translate(positions.x, positions.y))
+    .attr("width", width);
+
+  // Label & banding
+  const header = group.append("foreignObject")
+    .attr("width", width)
+    .attr("height", 27)
+    .attr("content", "build-header")
+    .append("xhtml:div")
+    .attr("class", "build__header")
+    .html(`
+      <div class="build__name">${build.name}</div>
+      <div class="build__banding"></div>
+    `);
+
+  const body = group.append("g").attr("class", "build__milestones")
+    .attr("width", "100%")
+    .selectAll("g.milestone")
+    .data(build => build.milestones)
+    .enter()
+    .each(OutsideMilestoneComponent);
+}
+
+let timelineListOrder = dataset.platforms[0].timelines.map(t => t.id);
+
+let draggedTimelineY;
+let freeTimelineSlot;
+
+let slots = ((timelines) => {
+  return timelines.reduce((result, timeline, i) => {
+    result[timeline.id] = i;
+    return result;
+  }, {});
+})(dataset.platforms[0].timelines);
 
 function OutsideMilestoneComponent(milestone, i) {
   const xScale = newX || x;
+
+  const positions = { 
+    x: xScale(milestone.date) - leftPadding, 
+    y: timelineHeight / 2 
+  };
+
   const group = d3.select(this)
     .append("g").attr("class", "milestone")
-    .attr("transform", m => translate(xScale(m.date) - leftPadding, timelineHeight / 2));
+    .attr("transform", translate(positions.x, positions.y));
 
   // text
   group.append("foreignObject")
@@ -256,26 +364,49 @@ function OutsideMilestoneComponent(milestone, i) {
     `);
 
   // diamond
-  group.append("rect").attr("class", "milestone-diamond");
+  const diamond = group.append("rect").attr("class", "milestone-diamond");
+
+  //collision resolution
+
+  // while (isSomeoneTouchingMe(milestone)) {
+  //   positions.y += 40;
+  //   group.attr("transform", translate(positions.x, positions.y));
+  // }
+
+  // function isSomeoneTouchingMe(me) {
+  //   const otherMilestones = d3.selectAll("g.milestone");
+  //   const xScale = newX || x;
+
+  //   for (let i = 0; i < otherMilestones.size(); i++) {
+  //     if (me === otherMilestones[i].datum()) {
+  //       continue;
+  //     }
+
+  //     if ( +(xScale(me.date) - xScale(other.date)) <= 10) {
+  //       return true;
+  //     }
+  //   }
+
+  //   return false;
+  // }
+
 
   // move milestone
   function dragStarted() {
-    d3.select(this).raise();
+    group.raise();
     group.attr("cursor", "grabbing");
   }
 
   function dragging(milestone) {
     const mouseX = d3.event.x;
     const getDateFromX = (mouseX) => {
-      mouseX += leftPadding; // necessary, otherwise... BUG
       const xScale = newX || x;
       return xScale.invert(mouseX)
     }
 
     milestone.date = getDateFromX(mouseX);
 
-    d3.select(this)
-      .attr("transform", translate(mouseX, timelineHeight /2));
+    group.attr("transform", translate(mouseX - leftPadding, timelineHeight /2));
   }
 
   function dragEnd() {
@@ -283,12 +414,12 @@ function OutsideMilestoneComponent(milestone, i) {
     redraw();
   }
 
-  group.call(d3.drag()
+  diamond.call(d3.drag()
+    .container(d3.select("g.timeline").node())
     .on("start", dragStarted)
     .on("drag", dragging)
     .on("end", dragEnd)
   );
-  
 
   // place
   group.call(x);
