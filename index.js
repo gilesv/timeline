@@ -12,6 +12,7 @@
 let dataset = {
   platforms: [
     {
+      id: "platform#desktop",
       name: "Desktop",
       timelines: [
         {
@@ -114,26 +115,20 @@ function setUp() {
   calendar.call(zoom);
 }
 
-function update(dataset) {
-  const platforms = createPlatforms(dataset.platforms);
-  //const milestones = createMilestoneGroup(calendar);
-  //const builds = createBuildGroup(calendar);
-}
-
-function createPlatforms(platforms) {
-  // add
-  calendar.select("g.platform-list")
+function update() {
+  const platforms = calendar.select("g.platform-list")
     .selectAll("g.platform")
-    .data(platforms)
-    .enter()
-    .each(PlatformComponent);
+    .data(dataset.platforms, p => p.id)
+    .join(
+      enter => enter.each(PlatformComponent),
+      update => update.attr("fill", "blue"),
+      exit => exit.remove()
+    );
 
-  // remove
-  calendar.select("g.platform-list")
-    .selectAll("g.platform")
-    .data(platforms)
-    .exit()
-    .remove();
+  const timelines = platforms.select("g.timeline-list")
+    .selectAll("g.timeline")
+    .data(platform => platform.timelines)
+    .join(enter => enter.each(TimelineComponent));
 }
 
 /**
@@ -147,7 +142,8 @@ function PlatformComponent(platform, i) {
 
   const group = d3.select(this)
     .append("g").attr("class", "platform")
-    .attr("transform", translate(0, 20));
+    .attr("transform", translate(0, 20))
+    .attr("data-name", platform.name);
 
   // Label
   group.append("foreignObject")
@@ -161,11 +157,12 @@ function PlatformComponent(platform, i) {
   // Timelines
   group.append("g")
     .attr("class", "timeline-list")
-    .attr("transform", translate(0, 27))
-    .selectAll("g.timeline")
-    .data(platform => platform.timelines)
-    .enter()
-    .each(TimelineComponent);
+
+  return group;
+  // .attr("transform", translate(0, 27))
+  // .selectAll("g.timeline")
+  // .data(platform => platform.timelines)
+  // .join(enter => enter.each(TimelineComponent));
 }
 
 function TimelineComponent(timeline, i) {
@@ -212,7 +209,7 @@ function TimelineComponent(timeline, i) {
     .attr("stroke", "#98989840")
     .attr("stroke-width", 1);
 
-    // Timeline name (left panel)
+  // Timeline name (left panel)
   const leftGroup = group.append("g")
     .append("foreignObject")
     .attr("width", leftPadding)
@@ -239,7 +236,7 @@ function TimelineComponent(timeline, i) {
   // Display line guide
   group.on("mousemove", function () {
     const mouseX = d3.mouse(d3.event.target)[0];
-    
+
     if (mouseX < leftPadding) {
       guide.attr("x1", 0).attr("x2", 0);
     } else {
@@ -267,7 +264,7 @@ function TimelineComponent(timeline, i) {
       group.attr("transform", translate(0, 0));
       return;
     }
-    
+
     if (mouseY > (calHeight - timelineHeight)) {
       group.attr("transform", translate(0, calHeight - timelineHeight));
       return;
@@ -287,16 +284,18 @@ function TimelineComponent(timeline, i) {
     .on("drag", dragging)
     .on("end", dragEnd)
   );
+
+  return group;
 }
 
 function BuildComponent(build, i) {
   const xScale = newX || x;
 
-  const minDate = d3.min(build.milestones,  m => m.date);
-  const maxDate = d3.max(build.milestones,  m => m.date);
+  const minDate = d3.min(build.milestones, m => m.date);
+  const maxDate = d3.max(build.milestones, m => m.date);
 
-  const positions = { 
-    x: xScale(minDate) - leftPadding, 
+  const positions = {
+    x: xScale(minDate) - leftPadding,
     y: (timelineHeight / 2) - 15
   };
 
@@ -329,9 +328,9 @@ function BuildComponent(build, i) {
 function BuildMilestoneComponent(milestone, i) {
   const xScale = newX || x;
 
-  const positions = { 
-    x: xScale(milestone.date) - leftPadding, 
-    y: timelineHeight / 2 
+  const positions = {
+    x: xScale(milestone.date) - leftPadding,
+    y: timelineHeight / 2
   };
 
   const group = d3.select(this)
@@ -370,7 +369,7 @@ function BuildMilestoneComponent(milestone, i) {
 
     milestone.date = getDateFromX(mouseX);
 
-    group.attr("transform", translate(mouseX - leftPadding, timelineHeight /2));
+    group.attr("transform", translate(mouseX - leftPadding, timelineHeight / 2));
   }
 
   function dragEnd() {
@@ -404,9 +403,9 @@ let slots = ((timelines) => {
 function OutsideMilestoneComponent(milestone, i) {
   const xScale = newX || x;
 
-  const positions = { 
-    x: xScale(milestone.date) - leftPadding, 
-    y: timelineHeight / 2 
+  const positions = {
+    x: xScale(milestone.date) - leftPadding,
+    y: timelineHeight / 2
   };
 
   const group = d3.select(this)
@@ -468,7 +467,7 @@ function OutsideMilestoneComponent(milestone, i) {
 
     milestone.date = getDateFromX(mouseX);
 
-    group.attr("transform", translate(mouseX - leftPadding, timelineHeight /2));
+    group.attr("transform", translate(mouseX - leftPadding, timelineHeight / 2));
   }
 
   function dragEnd() {
@@ -542,7 +541,7 @@ function translate(x, y) {
 
 // main
 setUp();
-update(dataset);
+update();
 
 function clean() {
   update({ platforms: [] });
@@ -550,7 +549,7 @@ function clean() {
 
 function addMilestone(timelineIndex, milestone) {
   dataset.platforms[0].timelines[timelineIndex].milestones.push(milestone);
-  redraw();
+  // redraw();
 }
 
 function redraw() {
