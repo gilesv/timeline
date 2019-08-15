@@ -19,16 +19,17 @@ let dataset = {
           name: "Saturn POR",
           builds: [
             {
+              id: "timeline#saturn#build#poc",
               name: "PoC",
               milestones: [
-                { title: "SMT/MLB Mini", date: new Date("2018-02-15") },
-                { title: "SMT/MLB Main", date: new Date("2018-06-20") },
+                { id: "timeline#saturn#build#poc#milestone#mini", title: "SMT/MLB Mini", date: new Date("2018-02-15") },
+                { id: "timeline#saturn#build#poc#milestone#main",title: "SMT/MLB Main", date: new Date("2018-06-20") },
               ],
             }
           ],
           milestones: [
-            { title: "OK2Ship", date: new Date("2018-08-09") },
-            { title: "Ramp", date: new Date("2018-12-10") },
+            { id: "timeline#saturn#o-milestone#ok2ship", title: "OK2Ship", date: new Date("2018-08-09") },
+            { id: "timeline#saturn#o-milestone#ramp", title: "Ramp", date: new Date("2018-09-01") },
           ]
         },
         {
@@ -36,16 +37,18 @@ let dataset = {
           name: "Mars",
           builds: [
             {
+              id: "timeline#mars#build#pvt",
               name: "PVT",
               milestones: [
-                { title: "SMT/MLB Mini", date: new Date("2018-01-01") },
-                { title: "SMT/MLB Main", date: new Date("2018-02-20") },
+                { id: "timeline#mars#build#pvt#milestone#mini", title: "SMT/MLB Mini", date: new Date("2018-01-01") },
+                { id: "timeline#mars#build#pvt#milestone#mini", title: "SMT/MLB Mini", date: new Date("2018-02-12") },
+                { id: "timeline#mars#build#pvt#milestone#main", title: "SMT/MLB Main", date: new Date("2018-02-20") },
               ],
             }
           ],
           milestones: [
-            { title: "OK2Ship", date: new Date("2017-05-09") },
-            { title: "Ramp", date: new Date("2017-08-10") },
+            { id: "timeline#mars#o-milestone#ok2ship", title: "OK2Ship", date: new Date("2017-05-09") },
+            { id: "timeline#mars#o-milestone#ramp", title: "Ramp", date: new Date("2017-08-10") },
           ]
         },
         {
@@ -53,16 +56,17 @@ let dataset = {
           name: "Earth",
           builds: [
             {
-              name: "DTV",
+              id: "timeline#earth#build#dvt",
+              name: "DVT",
               milestones: [
-                { title: "SMT/MLB Mini", date: new Date("2018-01-01") },
-                { title: "SMT/MLB Main", date: new Date("2018-02-20") },
+                { id: "timeline#earth#build#dvt#milestone#mini", title: "SMT/MLB Mini", date: new Date("2018-01-01") },
+                { id: "timeline#earth#build#dvt#milestone#main", title: "SMT/MLB Main", date: new Date("2018-02-20") },
               ],
             }
           ],
           milestones: [
-            { title: "Callback", date: new Date("2019-09-25") },
-            { title: "Ramp", date: new Date("2019-07-12") },
+            { id: "timeline#mars#o-milestone#callback", title: "Callback", date: new Date("2019-09-25") },
+            { id: "timeline#mars#o-milestone#ramp", title: "Ramp", date: new Date("2019-07-12") },
           ]
         },
       ]
@@ -79,9 +83,18 @@ let calHeight;
 let zoom;
 let newX;
 
+// Stack abstraction
+let piles = 1;
+// const pile = d3.local();
+const pileHeight = 55;
+
 // config
 const leftPadding = 250;
-const timelineHeight = 100;
+const timelineHeight = 152 + (( piles - 1 ) * pileHeight);
+const timelineBaseline = 50;
+
+const buildMilestoneRadius = 3;
+const buildMilestoneMinY = timelineBaseline + 45;
 
 function setUp() {
   calendar = d3.select("svg.calendar");
@@ -184,11 +197,14 @@ function TimelineComponent(timeline, i) {
   // right panel (draggable-area)
   const itemsArea = group.append("g").attr("class", "items");
 
-  // Outside Milestones (right panel)
-  itemsArea.append("g").attr("class", "outside-milestones")
+  // Milestones (right panel)
+  const milestonesArea = itemsArea.append("g")
+    .attr("class", "milestones")
     .attr("width", calendarWidth - leftPadding)
-    .attr("transform", translate(leftPadding, 0))
-    .selectAll("g.milestone")
+    .attr("transform", translate(leftPadding, 0));
+
+  // outside milestones
+  milestonesArea.selectAll("g.milestone")
     .data(timeline => timeline.milestones)
     .enter()
     .each(OutsideMilestoneComponent);
@@ -201,6 +217,17 @@ function TimelineComponent(timeline, i) {
     .data(timeline => timeline.builds)
     .enter()
     .each(BuildComponent);
+
+  milestonesArea.selectAll("g.build__milestone")
+    .data(timeline => {
+      let milestones = [];
+      for (let build of timeline.builds) {
+        milestones = milestones.concat(build.milestones);
+      }
+      return milestones;
+    })
+    .enter()
+    .each(BuildMilestoneComponent);
 
   // guideline
   const guide = group.append("line")
@@ -296,11 +323,11 @@ function BuildComponent(build, i) {
   const maxDate = d3.max(build.milestones,  m => m.date);
 
   const positions = { 
-    x: xScale(minDate) - leftPadding, 
-    y: (timelineHeight / 2) - 15
+    x: xScale(minDate) - leftPadding - buildMilestoneRadius, 
+    y: timelineBaseline - 15
   };
 
-  const width = xScale(maxDate) - xScale(minDate);
+  const width = xScale(maxDate) - xScale(minDate) + (buildMilestoneRadius * 2); // dont touch
 
   const group = d3.select(this)
     .append("g").attr("class", "build")
@@ -318,12 +345,6 @@ function BuildComponent(build, i) {
       <div class="build__name">${build.name}</div>
       <div class="build__banding"></div>
     `);
-
-  const body = group.append("g").attr("class", "build__milestones")
-    .selectAll("g.milestone")
-    .data(build => build.milestones)
-    .enter()
-    .each(BuildMilestoneComponent);
 }
 
 function BuildMilestoneComponent(milestone, i) {
@@ -331,12 +352,13 @@ function BuildMilestoneComponent(milestone, i) {
 
   const positions = { 
     x: xScale(milestone.date) - leftPadding, 
-    y: timelineHeight / 2 
+    y: buildMilestoneMinY
   };
 
   const group = d3.select(this)
     .append("g").attr("class", "build__milestone")
-    .attr("transform", translate(positions.x, positions.y));
+    .attr("transform", translate(positions.x, positions.y))
+    .attr("data-id", milestone.id);
 
   // text
   group.append("foreignObject")
@@ -353,7 +375,7 @@ function BuildMilestoneComponent(milestone, i) {
   // diamond
   const diamond = group.append("circle")
     .attr("class", "build__milestone-diamond")
-    .attr("r", 4);
+    .attr("r", buildMilestoneRadius);
 
   // move milestone
   function dragStarted() {
@@ -404,21 +426,29 @@ let slots = ((timelines) => {
 function OutsideMilestoneComponent(milestone, i) {
   const xScale = newX || x;
 
+  let myPile = 0;
+
   const positions = { 
     x: xScale(milestone.date) - leftPadding, 
-    y: timelineHeight / 2 
+    y: timelineBaseline + (myPile * pileHeight)
   };
 
   const group = d3.select(this)
     .append("g").attr("class", "milestone")
-    .attr("transform", translate(positions.x, positions.y));
+    .attr("data-id", milestone.id)
+    .attr("data-pile", myPile)
+    .attr("transform", translate(positions.x, positions.y))
+    .attr("data-x", positions.x)
+    .attr("data-y", positions.x);
 
   // text
-  group.append("foreignObject")
+  let textY = -32;
+  const text = group.append("foreignObject")
     .attr("width", 100)
     .attr("height", 50)
-    .attr("x", -19).attr("y", -32)
-    .append("xhtml:div")
+    .attr("x", -19);
+  
+  text.append("xhtml:div")
     .attr("class", "milestone-label")
     .html(`
         <div class="title">${milestone.title}</div>
@@ -430,27 +460,38 @@ function OutsideMilestoneComponent(milestone, i) {
 
   //collision resolution
 
-  // while (isSomeoneTouchingMe(milestone)) {
-  //   positions.y += 40;
-  //   group.attr("transform", translate(positions.x, positions.y));
-  // }
+  while (isSomeoneTouchingMyText(myPile, positions.x)) {
+    myPile += 1;
+    if (myPile > (piles - 1)) {
+      piles++;
+    } else {
+      piles--;
+    }
+  }
 
-  // function isSomeoneTouchingMe(me) {
-  //   const otherMilestones = d3.selectAll("g.milestone");
-  //   const xScale = newX || x;
+  group.attr("data-pile", myPile)
+  text.attr("y", textY + ( (myPile * pileHeight)));
 
-  //   for (let i = 0; i < otherMilestones.size(); i++) {
-  //     if (me === otherMilestones[i].datum()) {
-  //       continue;
-  //     }
+  function isSomeoneTouchingMyText(pile, myX) {    
+    const xScale = newX || x;
 
-  //     if ( +(xScale(me.date) - xScale(other.date)) <= 10) {
-  //       return true;
-  //     }
-  //   }
+    const otherMilestones = d3.selectAll(`g.milestone[data-pile='${pile}']`).nodes();
 
-  //   return false;
-  // }
+    for (let i = 0; i < otherMilestones.length; i++) {
+      const other = d3.select(otherMilestones[i]);
+
+      // if is the same element
+      if (myX === Number(other.attr("data-x"))) {
+        continue;
+      }
+
+      if ( +(myX - Number(other.attr("data-x"))) <= 100) {
+        return true;
+      }
+    }
+
+    return false;
+  }
 
 
   // move milestone
@@ -468,7 +509,7 @@ function OutsideMilestoneComponent(milestone, i) {
 
     milestone.date = getDateFromX(mouseX);
 
-    group.attr("transform", translate(mouseX - leftPadding, timelineHeight /2));
+    group.attr("transform", translate(mouseX - leftPadding, timelineBaseline));
   }
 
   function dragEnd() {
@@ -504,7 +545,24 @@ function zoomed() {
   newX = d3.event.transform.rescaleX(x);
 
   // set new positions and width
-  d3.selectAll("g.milestone").attr('transform', m => translate(newX(m.date) - leftPadding, timelineHeight / 2));
+  d3.selectAll("g.milestone").attr('transform', m => translate(newX(m.date) - leftPadding, timelineBaseline));
+
+  d3.selectAll("g.build__milestone").attr('transform', m => translate(newX(m.date) - leftPadding, buildMilestoneMinY));
+
+  d3.selectAll("g.build").each(function(build) {
+    const minDate = d3.min(build.milestones,  m => m.date);
+    const maxDate = d3.max(build.milestones,  m => m.date);
+  
+    const positions = { 
+      x: newX(minDate) - leftPadding -  buildMilestoneRadius, 
+      y: timelineBaseline - 15
+    };
+  
+    const width = newX(maxDate) - newX(minDate) + (2 * buildMilestoneRadius);
+
+    d3.select(this).attr("transform", translate(positions.x, positions.y));
+    d3.select(this).select("foreignObject").attr("width", width);
+  })
   // d3.selectAll("build")
   //   .attr('x', b => newX(b.from))
   //   .attr('width', b => newX(b.to) - newX(b.from));
