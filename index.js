@@ -135,18 +135,23 @@ function update(dataset) {
 
 function createPlatforms(platforms) {
   // add
-  calendar.select("g.platform-list")
+  const p = calendar.select("g.platform-list")
     .selectAll("g.platform")
-    .data(platforms)
-    .enter()
+    .data(platforms);
+
+    p.each(PlatformComponent);
+  
+    p.enter()
     .each(PlatformComponent);
+  
+    
 
   // remove
-  calendar.select("g.platform-list")
-    .selectAll("g.platform")
-    .data(platforms)
-    .exit()
-    .remove();
+  // calendar.select("g.platform-list")
+  //   .selectAll("g.platform")
+  //   .data(platforms)
+  //   .exit()
+  //   .remove();
 }
 
 /**
@@ -612,6 +617,6 @@ function addMilestone(timelineIndex, milestone) {
 }
 
 function redraw() {
-  clean();
+//  clean();
   update(dataset);
 }
