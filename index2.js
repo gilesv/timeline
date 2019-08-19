@@ -6,7 +6,7 @@ class Calendar {
         this.x = null;
         this.xAxis = null;
         this.gx = null;
-        
+
         this.calendar = null;
         this.calWidth = null;
         this.calHeight = null;
@@ -29,29 +29,29 @@ class Calendar {
     }
 
     timelineHeight(pilesNumber) {
-        return (( pilesNumber - 1 ) * this.pileHeight) + 152;
+        return ((pilesNumber - 1) * this.pileHeight) + 152;
     }
 
     setup() {
         this.calendar = d3.select(this.selector);
         this.calendarHeight = this.calendar.style("height").split("px")[0];
         this.calendarWidth = this.calendar.style("width").split("px")[0];
-      
+
         this.configTimeScale();
         this.configCalendarZoom();
 
         this.platformList = this.calendar.append("g")
             .attr("transform", this.translate(0, 20))
-            .attr("class", "platform-list");
+            .attr("class", "platforms");
     }
 
     configTimeScale() {
         this.x = d3.scaleTime()
-        .domain(this.getTimeScaleDomain(this.dataset))
-        .range([this.leftPadding, this.calendarWidth]);
-  
+            .domain(this.getTimeScaleDomain(this.dataset))
+            .range([this.leftPadding, this.calendarWidth]);
+
         this.xAxis = d3.axisTop(this.x).tickSize(-(this.calendarHeight - 20));
-    
+
         this.gX = this.calendar.append("g")
             .attr("class", "x-axis")
             .attr("height", this.calendarHeight)
@@ -66,57 +66,195 @@ class Calendar {
         //   .scaleExtent([1, 40])
         //   .translateExtent([[-100, -100], [calendarWidth + 90, calendarHeight + 100]])
         //   .on("zoom", zoomed);
-      
+
         this.calendar.call(this.zoom);
     }
 
     onCalendarZoom() {
+        const self = this;
+
         // Rescale the time scale
         this.newX = d3.event.transform.rescaleX(this.x);
         this.gX.call(this.xAxis.scale(this.newX));
 
         // outside milestones
-        d3.selectAll("g.milestone").attr('transform', m => {
-            return this.translate(this.newX(m.date) - this.leftPadding, this.timelineBaseline)
-        });
-      
-        // build milestones
-        d3.selectAll("g.build__milestone").attr('transform', m => {
-            return this.translate(newX(m.date) - this.leftPadding, this.buildMilestoneMinY)
-        });
-      
+        // d3.selectAll("g.milestone").attr('transform', m => {
+        //     return this.translate(this.newX(m.date) - this.leftPadding, this.timelineBaseline)
+        // });
+
+
         // Builds
-        const self = this;
-        d3.selectAll("g.build").each(function (build) {
-          const minDate = d3.min(build.milestones,  m => m.date);
-          const maxDate = d3.max(build.milestones,  m => m.date);
-        
-          const positions = { 
-            x: self.newX(minDate) - self.leftPadding - self.buildMilestoneRadius, 
-            y: self.timelineBaseline - 15
-          };
-        
-          const width = newX(maxDate) - newX(minDate) + (2 * self.buildMilestoneRadius);
-      
-          d3.select(this).attr("transform", translate(positions.x, positions.y));
-          d3.select(this).select("foreignObject").attr("width", width);
+        d3.selectAll("g.build").each(function (buildData) {
+            const config = self.getBuildConfig(buildData)
+
+            d3.select(this).attr("transform", self.translate(config.x, config.y));
+            d3.select(this).select("foreignObject").attr("width", config.width);
         });
+
+        // Milestones
+        d3.selectAll("g.build__milestone").each(function (milestoneData) {
+            const config = self.getMilestoneConfig(milestoneData);
+
+            d3.select(this)
+                .attr("transform", self.translate(config.x, config.y))
+        });
+
     }
 
     update() {
         const platforms = this.createPlatformList(this.platformList);
-        
-        // render timelines
-
         const timelines = this.createTimelineLists(platforms);
+        const builds = this.createBuilds(timelines);
+        const milestones = this.createMilestones(timelines);
+    }
+
+    createMilestones(parents) {
+        const self = this;
+
+        const transition = d3.transition()
+            .duration(500)
+            .ease(d3.easeCubicInOut);
+
+        parents.each(function (timeline, i) {
+            const timelineG = d3.select(this);
+            const items = timelineG.select("g.items");
+
+            items.selectAll("g.build__milestone")
+                .data(timeline => self.getAllMilestones(timeline), m => m.id)
+                .join(
+                    enter => enter.size() ? enterMilestone(enter, timeline) : () => { },
+                    update => update.size() ? updateMilestone(update, timeline) : () => { }
+                );
+        });
+
+        function enterMilestone(selection, timeline) {
+            selection.each((milestoneData, i, nodes) => {
+                const config = self.getMilestoneConfig(milestoneData);
+
+                const milestoneG = d3.select(nodes[i])
+                    .append("g")
+                    .attr("class", "build__milestone")
+                    .attr("transform", self.translate(config.x, config.y))
+                    .attr("data-id", milestoneData.id)
+                    .attr("data-timeline", timeline.id);
+
+                // Label & banding
+                milestoneG.append("foreignObject")
+                    .attr("width", 100)
+                    .attr("height", 50)
+                    .attr("x", -4).attr("y", -27)
+                    .append("xhtml:div")
+                    .attr("class", "build__milestone-label")
+                    .html(`
+                        <div class="build__milestone-label-title">
+                            ${milestoneData.title}
+                        </div>
+                        <div class="build__milestone-label-date">
+                            ${milestoneData.date.toLocaleDateString()}
+                        </div>
+                    `);
+
+                // diamond
+                const diamond = milestoneG.append("circle")
+                    .attr("class", "build__milestone-diamond")
+                    .attr("r", self.buildMilestoneRadius);
+
+                diamond.call(d3.drag()
+                    .container(d3.select("g.timeline").node())
+                    .on("start", dragStarted)
+                    .on("drag", dragging)
+                    .on("end", dragEnd)
+                );
+            })
+
+        }
+
+        function updateMilestone(selection) {
+            selection.each((milestoneData, i, nodes) => {
+                // change text
+                const milestoneSelection = d3.select(nodes[i]);
+
+                // change build name
+                milestoneSelection.select("foreignObject div.build__milestone-label-title")
+                    .text(milestoneData.title);
+
+                // change build date
+                milestoneSelection.select("foreignObject div.build__milestone-label-date")
+                    .text(milestoneData.date.toLocaleDateString());
+
+                // update config
+                const config = self.getMilestoneConfig(milestoneData);
+                milestoneSelection.attr("transform", self.translate(config.x, config.y));
+            })
+        }
+
+        // DRAG MILESTONE
+        function dragStarted(milestoneData, i) {
+            const milestoneG = d3.select(this.parentNode);
+            milestoneG.raise();
+            d3.select(this).attr("cursor", "grabbing");
+        }
+
+        function dragging(milestoneData, i) {
+            const mouseX = d3.event.x;
+            const x = self.getCurrentX();
+
+            milestoneData.date = x.invert(mouseX);
+
+            self.update();
+        }
+
+        function dragEnd() {
+            d3.select(this).attr("cursor", "grab");
+        }
+    }
+
+    createPlatformList(parent) {
+        const self = this;
+
+        parent.selectAll("g.platform")
+            .data(this.dataset.platforms)
+            .join(
+                enter => enterHandler(enter),
+                update => updateHandler(update),
+                exit => exit.remove()
+            );
+
+        // PLATFORM COMPONENT
+        function enterHandler(enter) {
+            const platformG = enter.append("g")
+                .attr("class", "platform")
+                .attr("transform", (p, i) => self.translate(0, 20 * i));
+
+            // placeholder
+            platformG.append("foreignObject")
+                .attr("width", "100%")
+                .attr("height", 27)
+                .attr("content", "label")
+                .append("xhtml:div")
+                .attr("class", "platform__label")
+                .text(platform => platform.name);
+
+            platformG.append("g")
+                .attr("class", "timelines")
+                .attr("transform", self.translate(0, 27));
+        }
+
+        function updateHandler(update) {
+            // change text
+            update.select("g.platform div").text(platform => platform.name);
+        }
+
+        return parent.selectAll("g.platform");
     }
 
     createTimelineLists(parents) {
         const self = this;
+
         parents.each(function (platform, i) {
             const platformG = d3.select(this);
             const timelineList = platformG.select("g.timelines");
-            
+
             timelineList.selectAll("g.timeline")
                 .data(platform => platform.timelines)
                 .join(
@@ -142,7 +280,7 @@ class Calendar {
                 .attr("class", "timeline__background")
                 .attr("even", (t, i) => i % 2 === 0 ? "true" : "false");
 
-                // Timeline name (left panel)
+            // Timeline name (left panel)
             const leftGroup = timelineG.append("g")
                 .append("foreignObject")
                 .attr("width", self.leftPadding)
@@ -163,65 +301,178 @@ class Calendar {
         function timelineExit(timeline) {
             timeline.remove()
         }
+
+        return parents.selectAll("g.timeline");
     }
 
-    createPlatformList(parent) {
+    createBuilds(parents) {
         const self = this;
-        
-        parent.selectAll("g.platform")
-            .data(this.dataset.platforms)
-            .join(
-                enter => enterHandler(enter),
-                update => updateHandler(update),
-                exit => exit.remove()
-            );
 
-        // PLATFORM COMPONENT
-        function enterHandler(enter) {
-            const platformG = enter.append("g")
-                .attr("class", "platform")
-                .attr("transform", (p, i) => self.translate(0, 20 * i));
+        const transition = d3.transition()
+            .duration(500)
+            .ease(d3.easeCubicInOut);
 
-            // placeholder
-            platformG.append("foreignObject")
-                .attr("width", "100%")
-                .attr("height", 27)
-                .attr("content", "label")
-                .append("xhtml:div")
-                .attr("class", "platform__label")
-                .text(platform => platform.name);
-            
-            platformG.append("g")
-                .attr("class", "timelines")
-                .attr("transform", self.translate(0, 27));
+        parents.each(function (timeline, i) {
+            const timelineG = d3.select(this);
+            const items = timelineG.select("g.items");
+
+            items.selectAll("g.build")
+                .data(timeline => timeline.builds)
+                .join(
+                    enter => enter.size() ? enterBuild(enter) : () => { },
+                    update => update.size() ? updateBuild(update) : () => { }
+                );
+        });
+
+        function enterBuild(buildsSelection) {
+            buildsSelection.each((buildData, i, buildNodes) => {
+                const config = self.getBuildConfig(buildData);
+                const buildG = d3.select(buildNodes[i]).append("g").attr("class", "build")
+                    .attr("transform", self.translate(config.x, config.y))
+                    .attr("width", config.width)
+                    .attr("expanded", false)
+                    .attr("data-x", config.x);
+
+                // Label & banding
+                buildG.append("foreignObject")
+                    .attr("width", config.width)
+                    .attr("height", 27)
+                    .attr("content", "build-header")
+                    .append("xhtml:div")
+                    .attr("class", "build__header")
+                    .html(`
+                        <div class="build__name">
+                            <div class="build__arrow"></div>
+                            <span>${buildData.name}</span>
+                        </div>
+                        <div class="build__banding"></div>
+                    `);
+
+                // expand/collapse handler
+                buildG.select("div.build__header")
+                    .on("click", function () {
+                        const buildG = d3.select(this.parentNode.parentNode);
+                        const milestones = buildData.milestones.map(m => m.id);
+                        let expanded = buildG.attr("expanded") === "true";
+
+                        buildG.attr("expanded", !expanded);
+
+                        // hide milestones
+                        milestones.forEach(m => {
+
+                            d3.select(`g.build__milestone[data-id='${m}']`)
+                                .classed("visible", !expanded);
+                        })
+
+                    });
+
+                buildG.select("div.build__header")
+                    .call(d3.drag()
+                        .container(d3.select("g.timeline").node())
+                        .on("start", dragStarted)
+                        .on("drag", dragging)
+                        .on("end", dragEnd)
+                    )
+            });
+
         }
 
-        function updateHandler(update) {
-            // change text
-            update.select("g.platform div").text(platform => platform.name);
+        function updateBuild(buildsSelection) {
+            buildsSelection.each((buildData, i, buildNodes) => {
+                // change text
+                const buildSelection = d3.select(buildNodes[i]);
+
+                buildSelection.select("g.build foreignObject div.build__name span").text(buildData.name);
+
+                // update config
+                const config = self.getBuildConfig(buildData);
+                buildSelection.attr("transform", self.translate(config.x, config.y));
+                buildSelection.attr("data-x", config.x);
+
+                buildSelection.select("foreignObject").attr("width", config.width);
+            })
         }
 
-        return parent.selectAll("g.platform");
+        // DRAG BUILD
+        function dragStarted(buildData, i) {
+            const buildG = d3.select(this.parentNode.parentNode);
+            buildG.raise();
+            d3.select(this).attr("cursor", "grabbing");
+        }
+
+        function dragging(buildData, i) {
+            const buildG = d3.select(this.parentNode.parentNode);
+            const x = self.getCurrentX();
+
+            const currentBuildX = Number(buildG.attr("data-x"));
+            const mouseX = d3.event.x;
+            const interval = mouseX - currentBuildX;
+
+            // console.log(mouseX);
+
+            buildData.milestones.forEach(milestone => {
+                const currentX = Number(x(milestone.date));
+                const newDate = x.invert(currentX + interval);
+                milestone.date = newDate;
+            });
+
+            self.update();
+        }
+
+        function dragEnd() {
+            d3.select(this).attr("cursor", "normal");
+        }
+    }
+
+    getBuildConfig(buildData) {
+        const x = this.getCurrentX();
+
+        const minDate = d3.min(buildData.milestones, m => m.date);
+        const maxDate = d3.max(buildData.milestones, m => m.date);
+
+        return {
+            x: x(minDate) - this.buildMilestoneRadius,
+            y: this.timelineBaseline - 15,
+            width: x(maxDate) - x(minDate) + (this.buildMilestoneRadius * 2)
+        }
     }
 
     // utils
     getTimeScaleDomain() {
         const platforms = this.dataset.platforms;
         let dates = [];
-        
+
         for (let platform of platforms) {
             for (let timeline of platform.timelines) {
                 dates = [...dates, ...timeline.milestones.map(m => m.date)];
-            
+
                 for (let build of timeline.builds) {
                     dates = [...dates, ...build.milestones.map(m => m.date)];
                 }
             }
         }
-        
+
         return [d3.min(dates), d3.max(dates)];
     }
-    
+
+    getAllMilestones(timeline) {
+        let milestones = [];
+
+        for (let build of timeline.builds) {
+            milestones = milestones.concat(build.milestones);
+        }
+
+        return milestones;
+    }
+
+    getMilestoneConfig(milestone) {
+        const x = this.getCurrentX();
+        return {
+            x: x(milestone.date),
+            y: this.buildMilestoneMinY
+        };
+    }
+
     getCurrentX() {
         return this.newX || this.x;
     }
@@ -251,7 +502,15 @@ const dataset = {
                             name: "PoC",
                             milestones: [
                                 { id: "timeline#saturn#build#poc#milestone#mini", title: "SMT/MLB Mini", date: new Date("2018-02-15") },
-                                { id: "timeline#saturn#build#poc#milestone#main",title: "SMT/MLB Main", date: new Date("2018-06-20") },
+                                { id: "timeline#saturn#build#poc#milestone#main", title: "SMT/MLB Main", date: new Date("2018-06-20") },
+                            ],
+                        },
+                        {
+                            id: "timeline#saturn#build#aaa",
+                            name: "AaA",
+                            milestones: [
+                                { id: "timeline#saturn#build#aaa#milestone#mini", title: "SMT/MLB Mini", date: new Date("2018-09-15") },
+                                { id: "timeline#saturn#build#aaa#milestone#main", title: "SMT/MLB Main", date: new Date("2019-02-20") },
                             ],
                         }
                     ],
@@ -269,7 +528,7 @@ const dataset = {
                             name: "PVT",
                             milestones: [
                                 { id: "timeline#mars#build#pvt#milestone#mini", title: "SMT/MLB Mini", date: new Date("2018-01-01") },
-                                { id: "timeline#mars#build#pvt#milestone#mini", title: "SMT/MLB Mini", date: new Date("2018-02-12") },
+                                { id: "timeline#mars#build#pvt#milestone#minAi", title: "SMT/MLB MiniAA", date: new Date("2018-02-12") },
                                 { id: "timeline#mars#build#pvt#milestone#main", title: "SMT/MLB Main", date: new Date("2018-02-20") },
                             ],
                         }
@@ -301,6 +560,6 @@ const dataset = {
         },
     ]
 };
-  
+
 const c = new Calendar("svg.calendar", dataset);
 c.render();

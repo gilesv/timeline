@@ -101,15 +101,30 @@ g.milestone.hidden .milestone-label {
 }
 
 .build__header {
+    position: relative;
     width: 100%;
     display: flex;
     flex-flow: column nowrap;
-
+    cursor: pointer;
 }
 
 .build__name {
     font-size: 14px;
     margin: 0 0 5px 10px;
+}
+
+.build__arrow {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-top: 1px solid blue;
+    border-right: 1px solid blue;
+    transform: rotate(135deg);
+    margin-right: 4px;
+}
+
+g.build[expanded="true"] .build__arrow {
+    transform: rotate(-45deg);
 }
 
 .build__banding {
@@ -141,7 +156,9 @@ g.milestone.hidden .milestone-label {
 }
 
 .build__milestone {
-    
+    opacity: 0;
+    transition: opacity .2s ease-in-out;
+    pointer-events: none;
 }
 
 .build__milestone {
@@ -155,7 +172,7 @@ g.milestone.hidden .milestone-label {
 
 .build__milestone-label {
     font-family: Arial;
-    font-size: 9px;
+    font-size: 10px;
     opacity: 1;
     transition: 1s;
 }
@@ -168,3 +185,9 @@ g.milestone.hidden .milestone-label {
 .build__milestone-diamond {
     fill: blueviolet;
 }
+
+.build__milestone.visible {
+    opacity: 1;
+    pointer-events: all;
+}
+
