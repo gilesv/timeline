@@ -110,13 +110,23 @@ class Calendar {
         });
 
         // Milestones
-        d3.selectAll("g.build__milestone").each(function (milestoneData, i, nodes) {
-            const config = self.getMilestoneConfig(milestoneData, nodes[i]);
+        d3.selectAll("g.build__milestone")
+            // .sort(this.compareMilestoneDate)
+            .each(function (milestoneData, i, nodes) {
+                const config = self.getMilestoneConfig(milestoneData, nodes[i]);
+                const oldY = self.buildMilestoneMinY + (Number(d3.select(this).attr('data-ysection')) - 1) * self.ySectionHeight;
 
-            d3.select(this)
-                .attr("transform", self.translate(config.x, config.y))
-                .attr("data-ysection", config.ySection);
-        });
+                d3.select(this)
+                    .attr("data-ysection", config.ySection)
+                    // .attr("transform", self.translate(config.x, oldY))
+                    .transition()
+                    .duration(150)
+                    // .ease(d3.easeLinear)
+                    .attrTween('transform', function() {
+                        return d3.interpolateTransformSvg(self.translate(config.x, oldY), self.translate(config.x, config.y))
+                    })
+                    // .attr("transform", self.translate(config.x, config.y));
+            });
 
     }
 
@@ -147,66 +157,72 @@ class Calendar {
         });
 
         function enterMilestone(selection, timeline) {
-            selection.each((milestoneData, i, nodes) => {
-                const config = self.getMilestoneConfig(milestoneData, nodes[i], timeline.id);
+            selection
+                // .sort(self.compareMilestoneDate)
+                .each((milestoneData, i, nodes) => {
+                    const config = self.getMilestoneConfig(milestoneData, nodes[i], timeline.id);
 
-                const milestoneG = d3.select(nodes[i])
-                    .append("g")
-                    .attr("class", "build__milestone")
-                    .attr("transform", self.translate(config.x, config.y))
-                    .attr("data-id", milestoneData.id)
-                    .attr("data-timeline", timeline.id)
-                    .attr("data-x", config.x)
-                    .attr("data-ysection", config.ySection);
+                    const milestoneG = d3.select(nodes[i])
+                        .append("g")
+                        .attr("class", "build__milestone")
+                        .attr("transform", self.translate(config.x, config.y))
+                        .attr("data-id", milestoneData.id)
+                        .attr("data-timeline", timeline.id)
+                        .attr("data-x", config.x)
+                        .attr("data-ysection", config.ySection);
 
-                // Label & banding
-                milestoneG.append("foreignObject")
-                    .attr("width", 100)
-                    .attr("height", 50)
-                    .attr("x", -4).attr("y", -27)
-                    .append("xhtml:div")
-                    .attr("class", "build__milestone-label")
-                    .html(`
-                        <div class="build__milestone-label-title">
-                            ${milestoneData.title}
-                        </div>
-                        <div class="build__milestone-label-date">
-                            ${milestoneData.date.toLocaleDateString()}
-                        </div>
-                    `);
+                    // Label & banding
+                    milestoneG.append("foreignObject")
+                        .attr("width", 100)
+                        .attr("height", 50)
+                        .attr("x", -4).attr("y", -27)
+                        .append("xhtml:div")
+                        .attr("class", "build__milestone-label")
+                        .html(`
+                            <div class="build__milestone-label-title">
+                                ${milestoneData.title}
+                            </div>
+                            <div class="build__milestone-label-date">
+                                ${milestoneData.date.toLocaleDateString()}
+                            </div>
+                        `);
 
-                // diamond
-                const diamond = milestoneG.append("circle")
-                    .attr("class", "build__milestone-diamond")
-                    .attr("r", self.buildMilestoneRadius);
+                    // diamond
+                    const diamond = milestoneG.append("circle")
+                        .attr("class", "build__milestone-diamond")
+                        .attr("r", self.buildMilestoneRadius);
 
-                diamond.call(d3.drag()
-                    .container(d3.select("g.timeline").node())
-                    .on("start", dragStarted)
-                    .on("drag", dragging)
-                    .on("end", dragEnd)
-                );
-            })
+                    diamond.call(d3.drag()
+                        .container(d3.select("g.timeline").node())
+                        .on("start", dragStarted)
+                        .on("drag", dragging)
+                        .on("end", dragEnd)
+                    );
+                })
 
         }
 
         function updateMilestone(selection) {
-            selection.each((milestoneData, i, nodes) => {
-                // change text
-                const milestoneSelection = d3.select(nodes[i]);
+            selection
+                // .sort(self.compareMilestoneDate)
+                .each((milestoneData, i, nodes) => {
+                    // change text
+                    const milestoneSelection = d3.select(nodes[i]);
 
-                // change build name
-                milestoneSelection.select("foreignObject div.build__milestone-label-title")
-                    .text(milestoneData.title);
+                    // change build name
+                    milestoneSelection.select("foreignObject div.build__milestone-label-title")
+                        .text(milestoneData.title);
 
-                // change build date
-                milestoneSelection.select("foreignObject div.build__milestone-label-date")
-                    .text(milestoneData.date.toLocaleDateString());
+                    // change build date
+                    milestoneSelection.select("foreignObject div.build__milestone-label-date")
+                        .text(milestoneData.date.toLocaleDateString());
 
-                // update config
-                const config = self.getMilestoneConfig(milestoneData, nodes[i]);
-                milestoneSelection.attr("transform", self.translate(config.x, config.y));
-            })
+                    // update config
+                    const config = self.getMilestoneConfig(milestoneData, nodes[i]);
+                    milestoneSelection
+                        .attr("transform", self.translate(config.x, config.y))
+                        .attr("data-ysection", config.ySection);
+                })
         }
 
         // DRAG MILESTONE
@@ -513,18 +529,27 @@ class Calendar {
     }
 
     isMilestoneColliding(milestoneId, milestoneX, timelineId, ySection) {
-        const otherMilestones = d3.selectAll(`g.build__milestone[data-ysection='${ySection}'][data-timeline='${timelineId}']`).nodes();
+        const xScale = this.getCurrentX();
+        const otherMilestonesData = d3.selectAll(`g.build__milestone[data-ysection='${ySection}'][data-timeline='${timelineId}']`).data();
 
-        for (let i = 0; i < otherMilestones.length; i++) {
-            const otherX = Number(d3.select(otherMilestones[i]).attr("data-x"));
-            const otherId = d3.select(otherMilestones[i]).attr("data-id")
+        for (let i = 0; i < otherMilestonesData.length; i++) {
+            const otherX = xScale(otherMilestonesData[i].date);
+            const otherId = otherMilestonesData[i].id;
 
-            if (milestoneId !== otherId && +(milestoneX - otherX) <= 200 ) {
+            if (milestoneId !== otherId && Math.hypot(milestoneX - otherX, 0) <= 80) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    compareMilestoneDate(milestoneA, milestoneB) {
+        if (milestoneA.date.getTime() === milestoneB.date.getTime()) {
+            return 0;
+        }
+
+        return milestoneA.date > milestoneB.date ? 1 : -1;
     }
 
     getCurrentX() {
