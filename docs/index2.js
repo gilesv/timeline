@@ -14,8 +14,8 @@ class Calendar {
         this.newX = null;
 
         // Stack abstraction
-        let piles = 1;
-        this.pileHeight = 55;
+        this.ySections = 1;
+        this.ySectionHeight = 55;
 
         // config
         this.leftPadding = 250;
@@ -30,18 +30,24 @@ class Calendar {
     }
 
     setupUiState() {
+        const timelines = this.dataset.platforms[0].timelines;
 
+        // timelines
+        const timelineUiState = timelines.reduce((result, timeline) => { 
+            result[timeline.id] = {
+                ySections: 1,
+                height: this.timelineHeight(1)
+            };
+            return result;
+        }, {});
 
-        return {
-            platforms: { },
-            timelines: { },
-            builds: { },
-            milestones: { }
+        this.uiState = {
+            timelines: timelineUiState,
         }
     }
 
-    timelineHeight(pilesNumber) {
-        return ((pilesNumber - 1) * this.pileHeight) + 152;
+    timelineHeight(ySectionsNumber) {
+        return ((ySectionsNumber - 1) * this.ySectionHeight) + 120;
     }
 
     setup() {
@@ -109,6 +115,7 @@ class Calendar {
 
             d3.select(this)
                 .attr("transform", self.translate(config.x, config.y))
+                .attr("data-ysection", config.ySection);
         });
 
     }
@@ -141,14 +148,16 @@ class Calendar {
 
         function enterMilestone(selection, timeline) {
             selection.each((milestoneData, i, nodes) => {
-                const config = self.getMilestoneConfig(milestoneData, nodes[i]);
+                const config = self.getMilestoneConfig(milestoneData, nodes[i], timeline.id);
 
                 const milestoneG = d3.select(nodes[i])
                     .append("g")
                     .attr("class", "build__milestone")
                     .attr("transform", self.translate(config.x, config.y))
                     .attr("data-id", milestoneData.id)
-                    .attr("data-timeline", timeline.id);
+                    .attr("data-timeline", timeline.id)
+                    .attr("data-x", config.x)
+                    .attr("data-ysection", config.ySection);
 
                 // Label & banding
                 milestoneG.append("foreignObject")
@@ -475,35 +484,42 @@ class Calendar {
         return milestones;
     }
 
-    getMilestoneConfig(milestoneData, node) {
+    getMilestoneConfig(milestoneData, node, timelineId = null) {
         const xScale = this.getCurrentX();
-        //let milestoneNode = d3.select(node);
 
-        /**let x = xScale(milestoneData.date);
+        if (timelineId === null) {
+            timelineId = d3.select(node).attr("data-timeline");
+        }
+
+        let x = Number(xScale(milestoneData.date));
         let y = this.buildMilestoneMinY;
+        let ySection = 1;
 
-        let ySection = milestoneNode.attr("ysection") || "1";
-        
+        while (this.isMilestoneColliding(milestoneData.id, x, timelineId, ySection)) {
+            ySection++;
+            
+            if (ySection > this.uiState.timelines[timelineId].ySections) {
+                this.uiState.timelines[timelineId].ySections++;
+            }
+        }
 
-        // while (this.isMilestoneColliding(x, ySection)) {
-
-        // }**/
-
-        //milestoneNode.attr("ysection", ySection);
+        y += (ySection - 1) * this.ySectionHeight;
 
         return {
             x: xScale(milestoneData.date),
-            y: this.buildMilestoneMinY
+            y,
+            ySection
         };
     }
 
-    isMilestoneColliding(x, ySection) {
-        const otherMilestones = d3.selectAll(`g.build__milestone[ysection='${ySection}']`).nodes();
+    isMilestoneColliding(milestoneId, milestoneX, timelineId, ySection) {
+        const otherMilestones = d3.selectAll(`g.build__milestone[data-ysection='${ySection}'][data-timeline='${timelineId}']`).nodes();
 
         for (let i = 0; i < otherMilestones.length; i++) {
             const otherX = Number(d3.select(otherMilestones[i]).attr("data-x"));
+            const otherId = d3.select(otherMilestones[i]).attr("data-id")
 
-            if (x !== otherX && +(x - otherX) <= 100 ) {
+            if (milestoneId !== otherId && +(milestoneX - otherX) <= 200 ) {
                 return true;
             }
         }

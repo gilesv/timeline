@@ -49,7 +49,7 @@ rect.milestone-diamond {
 }
 
 g.milestone.hidden .milestone-label {
-    opacity: 0;
+    *opacity: 0;
     transition: 1s;
 }
 
@@ -162,9 +162,9 @@ g.build[expanded="true"] .build__arrow {
 }
 
 .build__milestone {
-    opacity: 0;
+    *opacity: 0;
     transition: opacity .2s ease-in-out;
-    pointer-events: none;
+    *pointer-events: none;
 }
 
 .build__milestone {
