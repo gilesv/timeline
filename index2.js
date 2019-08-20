@@ -25,7 +25,19 @@ class Calendar {
         this.buildMilestoneMinY = this.timelineBaseline + 45;
 
         // init setup
+        this.setupUiState();
         this.setup();
+    }
+
+    setupUiState() {
+
+
+        return {
+            platforms: { },
+            timelines: { },
+            builds: { },
+            milestones: { }
+        }
     }
 
     timelineHeight(pilesNumber) {
@@ -92,8 +104,8 @@ class Calendar {
         });
 
         // Milestones
-        d3.selectAll("g.build__milestone").each(function (milestoneData) {
-            const config = self.getMilestoneConfig(milestoneData);
+        d3.selectAll("g.build__milestone").each(function (milestoneData, i, nodes) {
+            const config = self.getMilestoneConfig(milestoneData, nodes[i]);
 
             d3.select(this)
                 .attr("transform", self.translate(config.x, config.y))
@@ -129,7 +141,7 @@ class Calendar {
 
         function enterMilestone(selection, timeline) {
             selection.each((milestoneData, i, nodes) => {
-                const config = self.getMilestoneConfig(milestoneData);
+                const config = self.getMilestoneConfig(milestoneData, nodes[i]);
 
                 const milestoneG = d3.select(nodes[i])
                     .append("g")
@@ -183,7 +195,7 @@ class Calendar {
                     .text(milestoneData.date.toLocaleDateString());
 
                 // update config
-                const config = self.getMilestoneConfig(milestoneData);
+                const config = self.getMilestoneConfig(milestoneData, nodes[i]);
                 milestoneSelection.attr("transform", self.translate(config.x, config.y));
             })
         }
@@ -334,24 +346,23 @@ class Calendar {
                     .attr("data-x", config.x);
 
                 // Label & banding
-                buildG.append("foreignObject")
+                const foreign = buildG.append("foreignObject")
                     .attr("width", config.width)
-                    .attr("height", 27)
-                    .attr("content", "build-header")
+                    .attr("height", 30)
                     .append("xhtml:div")
                     .attr("class", "build__header")
                     .html(`
-                        <div class="build__name">
+                        <div class="build__title">
                             <div class="build__arrow"></div>
-                            <span>${buildData.name}</span>
+                            <span class="build__name">${buildData.name}</span>
                         </div>
                         <div class="build__banding"></div>
                     `);
 
                 // expand/collapse handler
-                buildG.select("div.build__header")
+                buildG.select("div.build__arrow")
                     .on("click", function () {
-                        const buildG = d3.select(this.parentNode.parentNode);
+                        const buildG = d3.select(this.parentNode.parentNode.parentNode.parentNode);
                         const milestones = buildData.milestones.map(m => m.id);
                         let expanded = buildG.attr("expanded") === "true";
 
@@ -359,14 +370,13 @@ class Calendar {
 
                         // hide milestones
                         milestones.forEach(m => {
-
                             d3.select(`g.build__milestone[data-id='${m}']`)
                                 .classed("visible", !expanded);
                         })
 
                     });
 
-                buildG.select("div.build__header")
+                buildG.select("span.build__name")
                     .call(d3.drag()
                         .container(d3.select("g.timeline").node())
                         .on("start", dragStarted)
@@ -395,20 +405,20 @@ class Calendar {
 
         // DRAG BUILD
         function dragStarted(buildData, i) {
-            const buildG = d3.select(this.parentNode.parentNode);
-            buildG.raise();
-            d3.select(this).attr("cursor", "grabbing");
+            return function() {
+                const buildG = d3.select(this.parentNode.parentNode.parentNode.parentNode);
+                buildG.raise();
+                d3.select(this).attr("cursor", "grabbing");
+            }
         }
 
         function dragging(buildData, i) {
-            const buildG = d3.select(this.parentNode.parentNode);
+            const buildG = d3.select(this.parentNode.parentNode.parentNode.parentNode);
             const x = self.getCurrentX();
 
             const currentBuildX = Number(buildG.attr("data-x"));
             const mouseX = d3.event.x;
             const interval = mouseX - currentBuildX;
-
-            // console.log(mouseX);
 
             buildData.milestones.forEach(milestone => {
                 const currentX = Number(x(milestone.date));
@@ -465,12 +475,40 @@ class Calendar {
         return milestones;
     }
 
-    getMilestoneConfig(milestone) {
-        const x = this.getCurrentX();
+    getMilestoneConfig(milestoneData, node) {
+        const xScale = this.getCurrentX();
+        //let milestoneNode = d3.select(node);
+
+        /**let x = xScale(milestoneData.date);
+        let y = this.buildMilestoneMinY;
+
+        let ySection = milestoneNode.attr("ysection") || "1";
+        
+
+        // while (this.isMilestoneColliding(x, ySection)) {
+
+        // }**/
+
+        //milestoneNode.attr("ysection", ySection);
+
         return {
-            x: x(milestone.date),
+            x: xScale(milestoneData.date),
             y: this.buildMilestoneMinY
         };
+    }
+
+    isMilestoneColliding(x, ySection) {
+        const otherMilestones = d3.selectAll(`g.build__milestone[ysection='${ySection}']`).nodes();
+
+        for (let i = 0; i < otherMilestones.length; i++) {
+            const otherX = Number(d3.select(otherMilestones[i]).attr("data-x"));
+
+            if (x !== otherX && +(x - otherX) <= 100 ) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     getCurrentX() {
