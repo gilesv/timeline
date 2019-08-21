@@ -178,7 +178,7 @@ class Calendar {
 
                     const milestoneG = d3.select(nodes[i])
                         .append("g")
-                        .attr("class", "build__milestone")
+                        .attr("class", milestone => `build__milestone ${milestone.type}`)
                         .attr("transform", self.translate(config.x, config.y))
                         .attr("data-id", milestoneData.id)
                         .attr("data-timeline", timeline.id)
@@ -325,11 +325,28 @@ class Calendar {
         return result;
     }
 
+    cleanTimelineYSections(timeline) {
+        let ySections = this.uiState.timelines[timeline.id].ySections;
+
+        while (ySections > 1) {
+            const milestonesInSection = d3.selectAll(`g.build__milestone.visible[data-ysection='${ySections}'][data-timeline='${timeline.id}']`).nodes();
+            if (milestonesInSection.length === 0) {
+                ySections--;
+            } else {
+                break;
+            }
+        }
+
+        this.uiState.timelines[timeline.id].ySections = ySections;
+    }
+
     updateTimelineConfig() {
         const self = this;
 
         d3.selectAll("g.timeline").each(function (timeline) {
             const t = d3.select(this);
+
+            self.cleanTimelineYSections(timeline);
 
             t.attr("transform", self.translate(0, self.getTimelineY(timeline)))
                 .selectAll("foreignObject")
@@ -422,7 +439,8 @@ class Calendar {
         function enterBuild(buildsSelection) {
             buildsSelection.each((buildData, i, buildNodes) => {
                 const config = self.getBuildConfig(buildData);
-                const buildG = d3.select(buildNodes[i]).append("g").attr("class", "build")
+                const buildG = d3.select(buildNodes[i]).append("g")
+                    .attr("class", build => `build ${build.type}`)
                     .attr("transform", self.translate(config.x, config.y))
                     .attr("width", config.width)
                     .attr("expanded", false)
@@ -455,7 +473,11 @@ class Calendar {
                         milestones.forEach(m => {
                             d3.select(`g.build__milestone[data-id='${m}']`)
                                 .classed("visible", !expanded);
-                        })
+                        });
+
+                        setTimeout(() => {
+                            self.update()
+                        }, 100);
 
                     });
 
@@ -588,7 +610,7 @@ class Calendar {
 
     isMilestoneColliding(milestoneId, milestoneX, timelineId, ySection) {
         const xScale = this.getCurrentX();
-        const otherMilestonesData = d3.selectAll(`g.build__milestone[data-ysection='${ySection}'][data-timeline='${timelineId}']`).data();
+        const otherMilestonesData = d3.selectAll(`g.build__milestone.visible[data-ysection='${ySection}'][data-timeline='${timelineId}']`).data();
 
         for (let i = 0; i < otherMilestonesData.length; i++) {
             const otherX = xScale(otherMilestonesData[i].date);
@@ -637,17 +659,19 @@ const dataset = {
                         {
                             id: "timeline#saturn#build#poc",
                             name: "PoC",
+                            type: "poc",
                             milestones: [
-                                { id: "timeline#saturn#build#poc#milestone#mini", title: "SMT/MLB Mini", date: new Date("2018-02-15") },
-                                { id: "timeline#saturn#build#poc#milestone#main", title: "SMT/MLB Main", date: new Date("2018-06-20") },
+                                { id: "timeline#saturn#build#poc#milestone#mini", title: "SMT/MLB Mini", date: new Date("2018-02-15"), type: "poc" },
+                                { id: "timeline#saturn#build#poc#milestone#main", title: "SMT/MLB Main", date: new Date("2018-06-20"), type: "poc" },
                             ],
                         },
                         {
-                            id: "timeline#saturn#build#aaa",
-                            name: "AaA",
+                            id: "timeline#saturn#build#proto",
+                            type: "proto",
+                            name: "Proto",
                             milestones: [
-                                { id: "timeline#saturn#build#aaa#milestone#mini", title: "SMT/MLB Mini", date: new Date("2018-09-15") },
-                                { id: "timeline#saturn#build#aaa#milestone#main", title: "SMT/MLB Main", date: new Date("2019-02-20") },
+                                { id: "timeline#saturn#build#proto#milestone#mini", title: "SMT/MLB Mini", date: new Date("2018-09-15"), type: "proto" },
+                                { id: "timeline#saturn#build#proto#milestone#main", title: "SMT/MLB Main", date: new Date("2019-02-20"), type: "proto" },
                             ],
                         }
                     ],
@@ -663,10 +687,21 @@ const dataset = {
                         {
                             id: "timeline#mars#build#pvt",
                             name: "PVT",
+                            type: "pvt",
                             milestones: [
-                                { id: "timeline#mars#build#pvt#milestone#mini", title: "SMT/MLB Mini", date: new Date("2018-01-01") },
-                                { id: "timeline#mars#build#pvt#milestone#minAi", title: "SMT/MLB MiniAA", date: new Date("2018-02-12") },
-                                { id: "timeline#mars#build#pvt#milestone#main", title: "SMT/MLB Main", date: new Date("2018-02-20") },
+                                { id: "timeline#mars#build#pvt#milestone#mini", title: "SMT/MLB Mini", date: new Date("2017-09-01"), type: "pvt" },
+                                { id: "timeline#mars#build#pvt#milestone#custom", title: "Custom", date: new Date("2018-10-01"), type: "pvt" },
+                                { id: "timeline#mars#build#pvt#milestone#main", title: "SMT/MLB Main", date: new Date("2018-04-20"), type: "pvt" },
+                            ],
+                        },
+                        {
+                            id: "timeline#mars#build#pvt",
+                            name: "EVT",
+                            type: "evt",
+                            milestones: [
+                                { id: "timeline#mars#build#evt#milestone#mini", title: "SMT/MLB Mini", date: new Date("2019-02-01"), type: "evt" },
+                                // { id: "timeline#mars#build#evt#milestone#fatpmini", title: "FATP Mini", date: new Date("2018-06-12"), type: "evt" },
+                                { id: "timeline#mars#build#evt#milestone#main", title: "SMT/MLB Main", date: new Date("2019-07-01"), type: "evt" },
                             ],
                         }
                     ],
@@ -682,9 +717,10 @@ const dataset = {
                         {
                             id: "timeline#earth#build#dvt",
                             name: "DVT",
+                            type: "dvt",
                             milestones: [
-                                { id: "timeline#earth#build#dvt#milestone#mini", title: "SMT/MLB Mini", date: new Date("2018-01-01") },
-                                { id: "timeline#earth#build#dvt#milestone#main", title: "SMT/MLB Main", date: new Date("2018-02-20") },
+                                { id: "timeline#earth#build#dvt#milestone#mini", title: "SMT/MLB Mini", date: new Date("2018-01-01"), type: "dvt" },
+                                { id: "timeline#earth#build#dvt#milestone#main", title: "FATP Main", date: new Date("2018-10-20"), type: "dvt" },
                             ],
                         }
                     ],

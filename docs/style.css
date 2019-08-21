@@ -80,7 +80,7 @@ g.timeline {
 }
 
 g.timeline > foreignObject {
-    transition: height .1s ease-in-out;
+    transition: max-height .5s ease-in-out;
 }
 
 .timeline__label {
@@ -132,6 +132,7 @@ g.timeline > foreignObject {
     transform: rotate(135deg);
     margin-right: 4px;
     position: fixed;
+    transition: transform .2s ease-in-out;
 }
 
 g.build[expanded="true"] .build__arrow {
@@ -140,7 +141,7 @@ g.build[expanded="true"] .build__arrow {
 
 .build__banding {
     width: 100%;
-    height: 2px;
+    height: 3px;
     background: blueviolet;
 }
 
@@ -150,7 +151,7 @@ g.build[expanded="true"] .build__arrow {
     height: 6px;
     background: blueviolet;
     position: fixed;
-    top: 22px;
+    top: 23px;
     border-radius: 50%;
 }
 
@@ -160,10 +161,41 @@ g.build[expanded="true"] .build__arrow {
     height: 6px;
     background: blueviolet;
     position: fixed;
-    top: 22px;
+    top: 23px;
     right: 0;
     border-radius: 50%;
 }
+
+g.build.poc .build__banding,
+g.build.poc .build__banding:after, 
+g.build.poc .build__banding:before {
+    background: #cc0099;
+}
+
+g.build.proto .build__banding,
+g.build.proto .build__banding:after, 
+g.build.proto .build__banding:before {
+    background: #5bcaff;
+}
+
+g.build.evt .build__banding,
+g.build.evt .build__banding:after, 
+g.build.evt .build__banding:before {
+    background: #4cd964;
+}
+
+g.build.dvt .build__banding,
+g.build.dvt .build__banding:after, 
+g.build.dvt .build__banding:before {
+    background: #ff9500;
+}
+
+g.build.pvt .build__banding,
+g.build.pvt .build__banding:after, 
+g.build.pvt .build__banding:before {
+    background: #0088cc;
+}
+
 
 g.items {
 }
@@ -192,6 +224,26 @@ g.build__milestone {
 
 .build__milestone-diamond {
     fill: blueviolet;
+}
+
+g.build__milestone.poc .build__milestone-diamond {
+    fill: #cc0099;
+}
+
+g.build__milestone.proto .build__milestone-diamond {
+    fill: #5bcaff;
+}
+
+g.build__milestone.evt .build__milestone-diamond {
+    fill: #4cd964;
+}
+
+g.build__milestone.dvt .build__milestone-diamond {
+    fill: #ff9500;
+}
+
+g.build__milestone.pvt .build__milestone-diamond {
+    fill: #0088cc;
 }
 
 .build__milestone.visible {
