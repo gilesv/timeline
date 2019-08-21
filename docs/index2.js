@@ -41,8 +41,11 @@ class Calendar {
             return result;
         }, {});
 
+        const timelinesOrder = timelines.map(t => t.id);
+        
         this.uiState = {
             timelines: timelineUiState,
+            timelinesOrder
         }
     }
 
@@ -113,21 +116,30 @@ class Calendar {
         d3.selectAll("g.build__milestone")
             // .sort(this.compareMilestoneDate)
             .each(function (milestoneData, i, nodes) {
+                const oldY = Number(d3.select(this).attr('data-y')); //self.buildMilestoneMinY + (Number(d3.select(this).attr('data-ysection')) - 1) * self.ySectionHeight;
                 const config = self.getMilestoneConfig(milestoneData, nodes[i]);
-                const oldY = self.buildMilestoneMinY + (Number(d3.select(this).attr('data-ysection')) - 1) * self.ySectionHeight;
-
+                
                 d3.select(this)
                     .attr("data-ysection", config.ySection)
-                    // .attr("transform", self.translate(config.x, oldY))
+                    // .attr("transform", self.translate(config.x, oldY));
+                
+                d3.select(this)
                     .transition()
-                    .duration(150)
-                    // .ease(d3.easeLinear)
+                    .duration(100)
+                    .ease(d3.easeLinear)
+                    .attr("transform", self.translate(config.x, config.y))
+                    .attr("data-x", config.x)
+                    .attr("data-y", config.y)
                     .attrTween('transform', function() {
-                        return d3.interpolateTransformSvg(self.translate(config.x, oldY), self.translate(config.x, config.y))
+                        // return (t) => {
+                        //     return self.translate(config.x, d3.interpolateNumber(oldY, config.y)(t));
+                        // }
+                        return d3.interpolateString(self.translate(config.x, oldY), self.translate(config.x, config.y))
                     })
-                    // .attr("transform", self.translate(config.x, config.y));
             });
-
+        
+        // Timelines
+        self.updateTimelineConfig();
     }
 
     update() {
@@ -135,6 +147,8 @@ class Calendar {
         const timelines = this.createTimelineLists(platforms);
         const builds = this.createBuilds(timelines);
         const milestones = this.createMilestones(timelines);
+
+        this.updateTimelineConfig();
     }
 
     createMilestones(parents) {
@@ -169,6 +183,7 @@ class Calendar {
                         .attr("data-id", milestoneData.id)
                         .attr("data-timeline", timeline.id)
                         .attr("data-x", config.x)
+                        .attr("data-y", config.y)
                         .attr("data-ysection", config.ySection);
 
                     // Label & banding
@@ -221,6 +236,8 @@ class Calendar {
                     const config = self.getMilestoneConfig(milestoneData, nodes[i]);
                     milestoneSelection
                         .attr("transform", self.translate(config.x, config.y))
+                        .attr("data-x", config.x)
+                        .attr("data-y", config.y)
                         .attr("data-ysection", config.ySection);
                 })
         }
@@ -285,6 +302,42 @@ class Calendar {
         return parent.selectAll("g.platform");
     }
 
+    getTimelineHeight(timeline) {
+        const ySections = this.uiState.timelines[timeline.id].ySections;
+        const timelineHeight = this.timelineHeight(ySections)
+        this.uiState.timelines[timeline.id].height = timelineHeight;
+
+        return timelineHeight;
+    }
+
+    getTimelineY(timeline) {
+        const timelines = this.uiState.timelinesOrder;
+        let result = 0;
+
+        for (let i = 0; i < timelines.length; i++) {
+            if (timelines[i] !== timeline.id) {
+                result += this.uiState.timelines[timelines[i]].height;
+            } else {
+                break;
+            }
+        }
+
+        return result;
+    }
+
+    updateTimelineConfig() {
+        const self = this;
+
+        d3.selectAll("g.timeline").each(function (timeline) {
+            const t = d3.select(this);
+
+            t.attr("transform", self.translate(0, self.getTimelineY(timeline)))
+                .selectAll("foreignObject")
+                .attr("height", self.getTimelineHeight(timeline)) // height
+                
+        });
+    }
+
     createTimelineLists(parents) {
         const self = this;
 
@@ -302,17 +355,19 @@ class Calendar {
         });
 
         function timelineEnter(timeline) {
-            const timelineHeight = self.timelineHeight(1);
-
             const timelineG = timeline
                 .append("g")
                 .attr("class", "timeline")
-                .attr("transform", (t, i) => self.translate(0, i * timelineHeight));
+                // Y
+                .attr("transform", (timeline, i) => {
+                    const y = self.getTimelineY(timeline);
+                    return self.translate(0, y);
+                });
 
             // background
             const background = timelineG.append("foreignObject")
                 .attr("width", "100%")
-                .attr("height", timelineHeight)
+                .attr("height", (timeline) => self.getTimelineHeight(timeline))
                 .append("xhtml:div")
                 .attr("class", "timeline__background")
                 .attr("even", (t, i) => i % 2 === 0 ? "true" : "false");
@@ -321,7 +376,7 @@ class Calendar {
             const leftGroup = timelineG.append("g")
                 .append("foreignObject")
                 .attr("width", self.leftPadding)
-                .attr("height", timelineHeight)
+                .attr("height", (timeline) => self.getTimelineHeight(timeline))
                 .append("xhtml:div")
                 .attr("class", "timeline__label")
                 .text(timeline => timeline.name);
@@ -332,7 +387,10 @@ class Calendar {
 
         function timelineUpdate(timeline) {
             // update name
-            timeline.select("g.timeline .timeline__label").text(timeline => timeline.name);;
+            timeline.select("g.timeline .timeline__label").text(timeline => timeline.name);
+            
+            // update config
+            self.updateTimelineConfig();
         }
 
         function timelineExit(timeline) {

@@ -4,7 +4,7 @@
 
 svg.calendar {
     width: 100%;
-    height: 500px;
+    height: 1000px;
     border: 1px solid #9e9e9e;
     position: relative;
 }
@@ -32,7 +32,7 @@ rect.milestone-diamond {
 }
 
 .milestone {
-    *transition: transform 0.1s ease;
+    backface-visibility: hidden;
     cursor: grab;
 }
 
@@ -75,8 +75,12 @@ g.milestone.hidden .milestone-label {
     background: #98989840;
 }
 
-.timeline { 
-    transition: transform .1s ease-out;
+g.timeline { 
+    transition: transform .1s ease-in-out;
+}
+
+g.timeline > foreignObject {
+    transition: height .1s ease-in-out;
 }
 
 .timeline__label {
@@ -161,14 +165,13 @@ g.build[expanded="true"] .build__arrow {
     border-radius: 50%;
 }
 
-.build__milestone {
-    *opacity: 0;
-    transition: opacity .2s ease-in-out;
-    *pointer-events: none;
+g.items {
 }
 
-.build__milestone {
-    *transition: transform 0.1s ease;
+g.build__milestone {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s ease-in-out;
 }
 
 .build__milestone > foreignObject {
@@ -180,7 +183,6 @@ g.build[expanded="true"] .build__arrow {
     font-family: Arial;
     font-size: 10px;
     opacity: 1;
-    transition: 1s;
 }
 
 .build__milestone-label-title {
